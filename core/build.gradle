@@ -1,0 +1,17 @@
+group 'io.getconnect'
+version '1.0'
+
+apply plugin: 'java'
+
+// Set the source and target to Java 6.
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-source" << "1.6" << "-target" << "1.6"
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+}
+
+archivesBaseName = "connect-client-core"
+
+apply from: file("${parent.rootDir}/gradle/maven-publish-java.gradle")

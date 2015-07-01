@@ -1,0 +1,70 @@
+apply plugin: 'com.android.library'
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:1.2.3'
+    }
+}
+
+// Set the source and target to Java 6.
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-source" << "1.6" << "-target" << "1.6"
+}
+
+android {
+    compileSdkVersion 19
+    buildToolsVersion "19.1"
+
+    defaultConfig {
+        minSdkVersion 9
+        targetSdkVersion 19
+        versionCode = VERSION_CODE
+        versionName = VERSION_NAME
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    lintOptions {
+        abortOnError false
+    }
+}
+
+android.libraryVariants.all { variant ->
+    def name = variant.buildType.name
+
+    // For each variant add a task to copy the core classes so they are included in the AAR.
+    def copyTask = project.tasks.create(name: "copyCoreToAndroid${name.capitalize()}", type: Copy) {
+        from(project(':core').sourceSets.main.output)
+        into(variant.javaCompile.destinationDir)
+    }
+    copyTask.dependsOn variant.javaCompile
+    variant.outputs.each { output ->
+        output.packageLibrary.dependsOn copyTask
+    }
+
+    // Also define a task to create a raw JAR to support non-AAR users.
+    def rawJarTask = project.tasks.create(name: "rawAndroidJar${name.capitalize()}", type: Jar) {
+        archiveName="connect-client-android-${project.version}.jar"
+        from(variant.javaCompile.destinationDir)
+    }
+    rawJarTask.dependsOn copyTask
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile project(':core')
+    testCompile 'org.robolectric:robolectric:3.0-rc3'
+}
+
+archivesBaseName = "connect-client-android"
+
+apply from: file("${parent.rootDir}/gradle/maven-publish-android.gradle")
