@@ -1,6 +1,8 @@
 Connect Java SDK
 ================
 
+[![Join the chat at https://gitter.im/getconnect/connect-java](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/getconnect/connect-java?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 The Connect Java SDK allows you to push events to Connect from any Java or Android application.
 
 The SDK provides a core library which provides the core functionality to push and queue batches and single events.
