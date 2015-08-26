@@ -164,6 +164,23 @@ batch.put("productsSold", new Map[] { event1, event2 });
 client.push(batch);
 ```
 
+### Generating filtered keys
+
+To generate a filtered key
+```java
+HashMap<String, Object> filters = new HashMap<String, Object>();
+filters.put("type", "cycling");
+
+HashMap<String, Object> keyDefinition = new HashMap<String, Object>();
+keyDefinition.put("filters", filters);
+keyDefinition.put("canQuery", true);
+keyDefinition.put("canPush", false);
+
+String masterKey = "YOUR_MASTER_KEY";
+String filteredKey = JavaConnectClient.generateFilteredKey(keyDefinition, masterKey); // Use AndroidConnectClient on android
+System.out.println(filteredKey);
+``` 
+
 ### Exception handling
 
 When pushing events, exceptions are thown, so you should either ignore or handle those exceptions gracefully.
