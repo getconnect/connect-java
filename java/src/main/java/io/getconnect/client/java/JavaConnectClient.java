@@ -32,6 +32,17 @@ public class JavaConnectClient extends ConnectClient {
      * @return The encrypted filtered key.
      */
     public static String generateFilteredKey(final Map<String, Object> key, String masterKey) throws FilteredKeyException {
-        return FilteredKey.encrypt(new JacksonJsonSerializer(), key, masterKey);
+        return generateFilteredKey(new JacksonJsonSerializer(), key, masterKey);
+    }
+
+    /**
+     * Encrypt filtered key for use with the Connect API.
+     * @param serializer the serializer used to serialize the filtered key.
+     * @param key the definition of the filtered key.
+     * @param masterKey the master key for the Connect project
+     * @return The encrypted filtered key.
+     */
+    public static String generateFilteredKey(final JsonSerializer serializer, final Map<String, Object> key, String masterKey) throws FilteredKeyException {
+        return FilteredKey.encrypt(serializer, key, masterKey);
     }
 }
