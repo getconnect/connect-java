@@ -1,18 +1,11 @@
 package io.getconnect.client;
 
-import io.getconnect.client.http.HttpClient;
-import io.getconnect.client.http.HttpRequest;
-import io.getconnect.client.http.HttpResponse;
-import io.getconnect.client.http.StreamWriter;
+import io.getconnect.client.exceptions.ConnectException;
+import io.getconnect.client.exceptions.ServerException;
+import io.getconnect.client.exceptions.InvalidEventException;
 import io.getconnect.client.store.EventStore;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.StringReader;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,194 +15,180 @@ import java.util.Map;
 public class ConnectClient {
     private final String projectId;
     private final String apiKey;
-    private final String baseUrl;
-    private final HttpClient httpClient;
-    private final JsonSerializer serializer;
     private final EventStore eventStore;
+    private final ConnectAPI connectAPI;
 
     /**
      * Creates a new Connect client.
      * @param projectId ID of the project to which to push events.
      * @param apiKey API key used to access the project (this must be a push or push/query key).
      * @param baseUrl Base URL of the Connect API.
-     * @param httpClient Client to use to perform HTTP requests.
-     * @param serializer Serializer for serializing to/from JSON.
+     * @param eventStore EventStore used for persistence.
      */
-    public ConnectClient(String projectId, String apiKey, String baseUrl, HttpClient httpClient, JsonSerializer serializer, EventStore eventStore) {
+    public ConnectClient(String projectId, String apiKey, String baseUrl, EventStore eventStore) {
         this.projectId = projectId;
         this.apiKey = apiKey;
-        this.baseUrl = baseUrl == null ? ConnectConstants.API_BASE_URL : baseUrl;
-        this.httpClient = httpClient;
-        this.serializer = serializer;
         this.eventStore = eventStore;
+        this.connectAPI = new ConnectAPI(projectId, apiKey, baseUrl);
     }
 
     /**
-     * Push an event to a collection in Connect.
+     * Synchronously push an event to a collection in Connect.
      * @param collection Name of the collection to which to push the event.
      * @param event Event to push to the collection.
-     * @throws InvalidCollectionException If the collection name is not valid.
-     * @throws DuplicateEventException If the event is a duplicate (i.e. the "id" is the same).
-     * @throws IOException If there is an error while sending or receiving the event or response, respectively.
      * @throws InvalidEventException If the server instructs that the event or its properties are invalid.
-     * @throws DuplicateEventException If an event being pushed already exists.
-     * @throws InvalidEventException If the properties of an event are invalid.
-     * @throws ServerException If a server-side errors occurs.
+     * @throws ConnectException When an error occurs.
+     *         Will be {@link InvalidEventException}, {@link ServerException}
+     *         or a generic {@link ConnectException} with an inner exception.
      */
-    public void push(String collection, final Map<String, Object> event) throws InvalidCollectionException, DuplicateEventException, IOException, InvalidEventException, ServerException {
-        URL url;
+    public void push(final String collection, final Map<String, Object> event) throws ConnectException {
+        this.connectAPI.pushEvent(collection, new Event(event));
+    }
+
+    /**
+     * Asynchronously Push an event to a collection in Connect.
+     * @param collection    Name of the collection to which to push the event.
+     * @param event         {@link Event} to push to the collection.
+     * @param callback      A {@link ConnectCallback} that will be invoked with the result of the request.
+     */
+    public void push(final String collection, final Map<String, Object> event, final ConnectCallback callback) {
+        Event mappedEvent = null;
         try {
-            url = new URL(baseUrl + "/events/" + collection);
-        } catch (MalformedURLException ex) {
-            throw new InvalidCollectionException("The collection specified is not valid.", ex);
+            mappedEvent = new Event(event);
+        } catch (ConnectException e) {
+            if (callback != null) {
+                callback.onFailure(e);
+            }
+            return;
         }
 
-        call(url, new Event(event).getEventData());
+        this.connectAPI.pushEvent(collection, mappedEvent, callback);
     }
 
     /**
-     * Push multiple events to a collection in Connect.
-     * @param events A {@link Map} of collection name to events for which to push to Connect.
+     * Synchronously push a batch of events to Connect.
+     * @param batch A {@link Map} of collection name to events for which to push to Connect.
      * @return A {@link Map} of collection name to an array of responses to individual event pushes in the same order as the request.
-     * @throws IOException If there is an error while sending or receiving the event or response, respectively.
-     * @throws DuplicateEventException If an event being pushed already exists.
-     * @throws InvalidEventException If the properties of an event are invalid.
-     * @throws ServerException If a server-side errors occurs.
+     * @throws ConnectException When an error occurs.
+     *         Will be {@link InvalidEventException}, {@Link ServerException}
+     *         or a generic {@link ConnectException} with an inner exception.
      */
-    public Map<String, EventPushResponse[]> push(final Map<String, Map<String, Object>[]> events) throws DuplicateEventException, IOException, InvalidEventException, ServerException {
-        URL url = new URL(baseUrl + "/events");
-
-        HashMap<String, Iterable<Map<String, Object>>> mappedEvents = new HashMap<String, Iterable<Map<String, Object>>>();
-
-        for (String collection : events.keySet()) {
-            ArrayList<Map<String, Object>> newEvents = new ArrayList<Map<String, Object>>();
-            for (Map<String, Object> event : events.get(collection)) {
-                newEvents.add(new Event(event).getEventData());
-            }
-            mappedEvents.put(collection, newEvents);
-        }
-
-        HttpResponse response = call(url, mappedEvents);
-
-        StringReader reader = new StringReader(response.getResponse());
-        Map<String, Object> responseBody = serializer.deserialize(reader);
-        reader.close();
-
-        HashMap<String, EventPushResponse[]> pushResponse = new HashMap<String, EventPushResponse[]>();
-        for (String collection : responseBody.keySet()) {
-            Map<String, Object>[] eventResponses = (Map<String, Object>[]) responseBody.get(collection);
-            ArrayList<EventPushResponse> mappedResponses = new ArrayList<EventPushResponse>();
-            int i = 0;
-            for (Map<String, Object> eventResponse : eventResponses) {
-                Map<String, Object> event = events.get(collection)[i++];
-                mappedResponses.add(new EventPushResponse(eventResponse, event));
-            }
-            pushResponse.put(collection, mappedResponses.toArray(new EventPushResponse[mappedResponses.size()]));
-        }
-
-        return pushResponse;
+    public Map<String, Iterable<EventPushResponse>> pushBatch(final Map<String, Iterable<Map<String, Object>>> batch) throws ConnectException {
+        Map<String, Iterable<Event>> eventBatch = Event.buildEventBatch(batch);
+        return this.connectAPI.pushEventBatch(eventBatch);
     }
 
     /**
-     * Call the Connect API with the specified data.
-     * @param url URL of the API to call.
-     * @param data Data to push to the specified API.
-     * @return The response from the API.
-     * @throws IOException If there is an error while sending or receiving the request or response, respectively.
-     * @throws DuplicateEventException If an event being pushed already exists.
-     * @throws InvalidEventException If the properties of an event are invalid.
-     * @throws ServerException If a server-side errors occurs.
+     * Asynchronously push a batch of events to Connect.
+     * @param batch A Map with collection name as a key and event Maps as values.
+     * @param callback  A {@link ConnectBatchCallback} that will be invoked with the result of the request.
      */
-    protected HttpResponse call(URL url, final Map<String, ?> data) throws DuplicateEventException, IOException, InvalidEventException, ServerException {
-        HashMap<String, String> headers = new HashMap<String, String>();
-        headers.put("X-Project-Id", projectId);
-        headers.put("X-Api-Key", apiKey);
-
-        StreamWriter writer = new StreamWriter() {
-            @Override
-            public void write(OutputStream stream) throws IOException {
-                OutputStreamWriter writer = new OutputStreamWriter(stream, "UTF-8");
-                serializer.serialize(writer, data);
+    public void pushBatch(final Map<String, Iterable<Map<String, Object>>> batch, final ConnectBatchCallback callback) {
+        Map<String, Iterable<Event>> eventBatch = null;
+        try {
+            eventBatch = Event.buildEventBatch(batch);
+        } catch (ConnectException e) {
+            if (callback != null) {
+                callback.onFailure(e);
             }
-        };
-
-        HttpResponse response = httpClient.send(new HttpRequest(url, "POST", headers, writer));
-
-        if (response.getStatusCode() == 200)
-            return response;
-
-        StringReader reader = new StringReader(response.getResponse());
-        Map<String, Object> responseBody = serializer.deserialize(reader);
-        reader.close();
-
-        switch (response.getStatusCode()) {
-            case 409:
-                throw new DuplicateEventException((String)responseBody.get("errorMessage"));
-
-            case 422:
-                HashMap<String, String> errors = new HashMap<String, String>();
-                for (Map<String, Object> fieldError : (Iterable<Map<String, Object>>)responseBody.get("errors")) {
-                    errors.put((String)fieldError.get("field"), (String)fieldError.get("description"));
-                }
-                throw InvalidEventException.create(errors);
-
-            default:
-                throw new ServerException((String)responseBody.get("errorMessage"));
+            return;
         }
+
+        this.connectAPI.pushEventBatch(eventBatch, callback);
     }
 
     /**
      * Add an event to the event store to be delivered later.
      * @param collection Name of the collection to which to push the event.
      * @param event Event to add to the collection.
-     * @throws IOException If there is an error adding the event to the store.
+     * @throws ConnectException When an error occurs.
+     *         Will be {@link InvalidEventException} or a generic {@link ConnectException} with an inner exception.
      */
-    public synchronized void add(String collection, final Map<String, Object> event) throws IOException {
-        eventStore.add(collection, new Event(event));
+    public synchronized void add(String collection, final Map<String, Object> event) throws ConnectException {
+        try {
+            eventStore.add(collection, new Event(event));
+        } catch (IOException e) {
+            throw new ConnectException(e);
+        }
     }
 
     /**
-     * Push the pending events stored to Connect.
-     * @return A {@link Map} of collection name to an array of responses to individual event pushes in the same order as the request.
-     * @throws IOException If there is an error while pushing the pending events to Connect.
+     * Push the pending events stored to Connect synchronously.
+     * @return A {@link Map} of collection name to an array of responses to individual events pushed from the queue.
+     * @throws ConnectException When an error occurs.
+     *         Will be {@link InvalidEventException}, {@Link ServerException}
+     *         or a generic {@link ConnectException} with an inner exception.
      */
-    public synchronized Map<String, EventPushResponse[]> pushPending() throws IOException {
-        URL url = new URL(baseUrl + "/events");
+    public synchronized Map<String, Iterable<EventPushResponse>> pushPending() throws ConnectException {
 
-        Map<String, Event[]> events = eventStore.readAll();
-
-        HashMap<String, Iterable<Map<String, Object>>> mappedEvents = new HashMap<String, Iterable<Map<String, Object>>>();
-
-        for (String collection : events.keySet()) {
-            ArrayList<Map<String, Object>> newEvents = new ArrayList<Map<String, Object>>();
-            for (Event event : events.get(collection)) {
-                newEvents.add(event.getEventData());
-            }
-            mappedEvents.put(collection, newEvents);
+        Map<String, Iterable<Event>> eventBatch = null;
+        try {
+            eventBatch = this.eventStore.readAll();
+        } catch (IOException e) {
+            throw new ConnectException(e);
         }
 
-        HttpResponse response = call(url, mappedEvents);
+        if (eventBatch.size() < 1) {
+            return new HashMap<String, Iterable<EventPushResponse>>();
+        }
 
-        StringReader reader = new StringReader(response.getResponse());
-        Map<String, Object> responseBody = serializer.deserialize(reader);
-        reader.close();
+        Map<String, Iterable<EventPushResponse>> details = this.connectAPI.pushEventBatch(eventBatch);
+        this.updateStoreWithResponse(details);
+        return details;
+    }
 
-        HashMap<String, EventPushResponse[]> pushResponse = new HashMap<String, EventPushResponse[]>();
-        for (String collection : responseBody.keySet()) {
-            Iterable<Map<String, Object>> eventResponses = (Iterable<Map<String, Object>>) responseBody.get(collection);
-            ArrayList<EventPushResponse> mappedResponses = new ArrayList<EventPushResponse>();
-            int i = 0;
-            for (Map<String, Object> eventResponse : eventResponses) {
-                Event event = events.get(collection)[i++];
-                EventPushResponse mappedResponse = new EventPushResponse(eventResponse, event.getEventData());
-                if (mappedResponse.isSuccessful() || mappedResponse.isDuplicate()) {
-                    eventStore.acknowledge(collection, event);
+    /**
+     * Push the pending events stored to Connect asynchronously.
+     * @param callback A {@link ConnectBatchCallback} that will be invoked with the result of the request.
+     */
+    public synchronized void pushPending(final ConnectBatchCallback callback) {
+
+        Map<String, Iterable<Event>> eventBatch = null;
+        try {
+            eventBatch = this.eventStore.readAll();
+        } catch (IOException e) {
+            if (callback != null) {
+                callback.onFailure(new ConnectException(e));
+            }
+            return;
+        }
+
+        if (eventBatch.size() < 1) {
+            if (callback != null) {
+                callback.onSuccess(new HashMap<String, Iterable<EventPushResponse>>());
+            }
+            return;
+        }
+
+        this.connectAPI.pushEventBatch(eventBatch, new ConnectBatchCallback() {
+            @Override
+            public void onSuccess(Map<String, Iterable<EventPushResponse>> details) {
+                ConnectClient.this.updateStoreWithResponse(details);
+                if (callback != null) {
+                    callback.onSuccess(details);
                 }
-                mappedResponses.add(mappedResponse);
             }
-            pushResponse.put(collection, mappedResponses.toArray(new EventPushResponse[mappedResponses.size()]));
-        }
 
-        return pushResponse;
+            @Override
+            public void onFailure(ConnectException e) {
+                if (callback != null) {
+                    callback.onFailure(e);
+                }
+            }
+        });
+    }
+
+    protected synchronized void updateStoreWithResponse(Map<String, Iterable<EventPushResponse>> details) {
+        for (String collection : details.keySet()) {
+            for (EventPushResponse eventResponse : details.get(collection)) {
+                if (eventResponse.isSuccessful()) {
+                    try {
+                        eventStore.acknowledge(collection, eventResponse.getEvent());
+                    } catch (IOException e) {
+                        // ignore, it will try again on the next pass.
+                    }
+                }
+            }
+        }
     }
 }

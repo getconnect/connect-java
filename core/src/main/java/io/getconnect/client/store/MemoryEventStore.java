@@ -26,18 +26,18 @@ public class MemoryEventStore implements EventStore {
     }
 
     @Override
-    public Event[] read(String collection) throws IOException {
+    public Iterable<Event> read(String collection) throws IOException {
         ArrayList<Event> collectionEvents = getEvents(collection);
-        return collectionEvents.toArray(new Event[collectionEvents.size()]);
+        return collectionEvents;
     }
 
     @Override
-    public Map<String, Event[]> readAll() throws IOException {
-        HashMap<String, Event[]> allEvents = new HashMap<String, Event[]>();
+    public Map<String, Iterable<Event>> readAll() throws IOException {
+        HashMap<String, Iterable<Event>> allEvents = new HashMap<String, Iterable<Event>>();
 
         for (String collection : events.keySet()) {
             ArrayList<Event> collectionEvents = events.get(collection);
-            allEvents.put(collection, collectionEvents.toArray(new Event[collectionEvents.size()]));
+            allEvents.put(collection, collectionEvents);
         }
 
         return allEvents;
