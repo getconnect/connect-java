@@ -1,6 +1,7 @@
 package io.getconnect.client.store;
 
 import io.getconnect.client.Event;
+import io.getconnect.client.exceptions.InvalidEventException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,14 +24,14 @@ public interface EventStore {
      * @return An {@link Iterable} of events under that collection.
      * @throws IOException If there is a problem reading the events from the store.
      */
-    Event[] read(String collection) throws IOException;
+    Iterable<Event> read(String collection) throws IOException;
 
     /**
      * Read all events in the store.
-     * @return A {@link Map} of collection names to an array of events in the store.
+     * @return A {@link Map} of collection names to a list of events in the store.
      * @throws IOException If there is a problem reading the events from the store.
      */
-    Map<String, Event[]> readAll() throws IOException;
+    Map<String, Iterable<Event>> readAll() throws IOException;
 
     /**
      * Acknowledge a single event has been sent.

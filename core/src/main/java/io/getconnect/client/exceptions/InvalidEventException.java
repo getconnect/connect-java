@@ -1,11 +1,11 @@
-package io.getconnect.client;
+package io.getconnect.client.exceptions;
 
 import java.util.Map;
 
 /**
  * Represents an exception when trying to create an event with invalid properties.
  */
-public class InvalidEventException extends RuntimeException {
+public class InvalidEventException extends ConnectException {
     public InvalidEventException() {
         super();
     }

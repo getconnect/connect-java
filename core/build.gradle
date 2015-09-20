@@ -9,7 +9,11 @@ tasks.withType(JavaCompile) {
 }
 
 dependencies {
-    testCompile group: 'junit', name: 'junit', version: '4.11'
+    compile 'com.squareup.okhttp:okhttp:2.5.0'
+    compile 'com.google.code.gson:gson:2.3.1'
+    compile 'commons-codec:commons-codec:1.9'
+    testCompile 'junit:junit:4.12'
+    testCompile 'com.squareup.okhttp:mockwebserver:2.5.0'
 }
 
 archivesBaseName = "connect-client-core"

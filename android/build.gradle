@@ -15,12 +15,12 @@ tasks.withType(JavaCompile) {
 }
 
 android {
-    compileSdkVersion 19
-    buildToolsVersion "19.1"
+    compileSdkVersion 21
+    buildToolsVersion "21.1.2"
 
     defaultConfig {
         minSdkVersion 9
-        targetSdkVersion 19
+        targetSdkVersion 21
         versionCode = VERSION_CODE
         versionName = VERSION_NAME
     }
@@ -62,7 +62,8 @@ repositories {
 
 dependencies {
     compile project(':core')
-    testCompile 'org.robolectric:robolectric:3.0-rc3'
+    testCompile 'org.robolectric:robolectric:3.0'
+    testCompile 'junit:junit:4.12'
 }
 
 archivesBaseName = "connect-client-android"

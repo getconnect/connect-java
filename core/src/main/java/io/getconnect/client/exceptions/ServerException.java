@@ -1,9 +1,9 @@
-package io.getconnect.client;
+package io.getconnect.client.exceptions;
 
 /**
  * Represents a general server exception.
  */
-public class ServerException extends RuntimeException {
+public class ServerException extends ConnectException {
     public ServerException() {
         super();
     }

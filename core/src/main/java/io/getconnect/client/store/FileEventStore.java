@@ -1,7 +1,8 @@
 package io.getconnect.client.store;
 
+import org.apache.commons.codec.binary.Base32;
+
 import io.getconnect.client.Event;
-import io.getconnect.client.JsonSerializer;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -10,19 +11,20 @@ import java.util.Map;
 
 public class FileEventStore implements EventStore {
     private final File root;
-    private final JsonSerializer serializer;
+    private final Base32 base32;
 
-    public FileEventStore(String projectId, File root, JsonSerializer serializer) throws IOException {
+    public FileEventStore(String projectId, File root) throws IOException {
         if (!root.exists() || !root.isDirectory()) {
             throw new IOException("The root directory '" + root + "' does not exist or is not a directory.");
         }
 
         this.root = new File(root, projectId);
-        this.serializer = serializer;
+        this.base32 = new Base32();
     }
 
     protected File getCollectionDir(String collection) throws IOException {
-        File collectionDir = new File(root, collection);
+        String fileName = base32.encodeAsString(collection.getBytes());
+        File collectionDir = new File(root, fileName);
         if (collectionDir.exists())
             return collectionDir;
 
@@ -42,54 +44,53 @@ public class FileEventStore implements EventStore {
         try {
             OutputStream stream = new FileOutputStream(eventFile);
             writer = new OutputStreamWriter(stream, "UTF-8");
-            serializer.serialize(writer, event.getEventData());
+            writer.write(event.getEventJSON());
         } finally {
             if (writer != null) {
-                try {
-                    writer.close();
-                } catch (IOException ex) {
-                    // Ignore
-                }
+                try { writer.close(); } catch (IOException ex) { }
             }
         }
     }
 
     @Override
-    public Event[] read(String collection) throws IOException {
+    public Iterable<Event> read(String collection) throws IOException {
         File collectionDir = getCollectionDir(collection);
 
         File[] files = collectionDir.listFiles();
         ArrayList<Event> events = new ArrayList<Event>();
 
         for (File file : files) {
-            Reader reader = null;
+            BufferedReader reader = null;
             try {
-                InputStream stream = new FileInputStream(file);
-                reader = new InputStreamReader(stream, "UTF-8");
-                Map<String, Object> eventData = serializer.deserialize(reader);
-                events.add(Event.fromEventStore(eventData, file.getName().replace(".json", "")));
-            } finally {
+                FileInputStream fin = new FileInputStream(file);
+                reader = new BufferedReader(new InputStreamReader(fin, "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line = null;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line).append("\n");
+                }
+                reader.close();
+                String eventJSON = sb.toString();
+
+                events.add(Event.fromEventStore(eventJSON, file.getName().replace(".json", "")));
+            } catch (Exception e){
                 if (reader != null) {
-                    try {
-                        reader.close();
-                    } catch (IOException ex) {
-                        // Ignore
-                    }
+                    try { reader.close(); } catch (IOException ex) { }
                 }
             }
         }
 
-        return events.toArray(new Event[events.size()]);
+        return events;
     }
 
     @Override
-    public Map<String, Event[]> readAll() throws IOException {
-        HashMap<String, Event[]> events = new HashMap<String, Event[]>();
+    public Map<String, Iterable<Event>> readAll() throws IOException {
+        HashMap<String, Iterable<Event>> events = new HashMap<String, Iterable<Event>>();
 
         File[] collections = root.listFiles();
 
         for (File collection : collections) {
-            String collectionName = collection.getName();
+            String collectionName = new String(base32.decode(collection.getName()));
             events.put(collectionName, this.read(collectionName));
         }
 
@@ -102,4 +103,5 @@ public class FileEventStore implements EventStore {
 
         new File(collectionDir, event.getEventStoreId() + ".json").delete();
     }
+
 }
