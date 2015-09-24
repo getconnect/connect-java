@@ -62,6 +62,9 @@ repositories {
 
 dependencies {
     compile project(':core')
+    compile 'com.squareup.okhttp:okhttp:2.5.0'
+    compile 'com.google.code.gson:gson:2.3.1'
+    compile 'commons-codec:commons-codec:1.9'
     testCompile 'org.robolectric:robolectric:3.0'
     testCompile 'junit:junit:4.12'
 }
