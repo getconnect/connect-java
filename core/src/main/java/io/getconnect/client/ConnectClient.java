@@ -51,7 +51,7 @@ public class ConnectClient {
      * @param event         {@link Event} to push to the collection.
      * @param callback      A {@link ConnectCallback} that will be invoked with the result of the request.
      */
-    public void push(final String collection, final Map<String, Object> event, final ConnectCallback callback) {
+    public void pushAsync(final String collection, final Map<String, Object> event, final ConnectCallback callback) {
         Event mappedEvent = null;
         try {
             mappedEvent = new Event(event);
@@ -83,7 +83,7 @@ public class ConnectClient {
      * @param batch A Map with collection name as a key and event Maps as values.
      * @param callback  A {@link ConnectBatchCallback} that will be invoked with the result of the request.
      */
-    public void pushBatch(final Map<String, Iterable<Map<String, Object>>> batch, final ConnectBatchCallback callback) {
+    public void pushBatchAsync(final Map<String, Iterable<Map<String, Object>>> batch, final ConnectBatchCallback callback) {
         Map<String, Iterable<Event>> eventBatch = null;
         try {
             eventBatch = Event.buildEventBatch(batch);
@@ -141,7 +141,7 @@ public class ConnectClient {
      * Push the pending events stored to Connect asynchronously.
      * @param callback A {@link ConnectBatchCallback} that will be invoked with the result of the request.
      */
-    public synchronized void pushPending(final ConnectBatchCallback callback) {
+    public synchronized void pushPendingAsync(final ConnectBatchCallback callback) {
 
         Map<String, Iterable<Event>> eventBatch = null;
         try {
