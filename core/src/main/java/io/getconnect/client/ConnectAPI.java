@@ -205,8 +205,14 @@ public class ConnectAPI {
                     errors.put((String) fieldError.get("field"), (String) fieldError.get("description"));
                 }
                 return InvalidEventException.create(errors);
+            case 401:
+                return new ServerException("Unauthorised. please ensure your Project Key is correct and you have supplied a valid Push Key");
             default:
-                return new ServerException((String)responseData.get("errorMessage"));
+                String message = null;
+                if (responseData != null && responseData.containsKey("errorMessage")) {
+                    message = (String)responseData.get("errorMessage");
+                }
+                return new ServerException(message);
         }
     }
 

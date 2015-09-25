@@ -105,7 +105,7 @@ public class Event {
         }
     }
 
-    public static Map<String, Iterable<Event>> buildEventBatch(Map<String, Iterable<Map<String, Object>>> events) throws InvalidEventException {
+    public static Map<String, Iterable<Event>> buildEventBatch(Map<String, Map<String, Object>[]> events) throws InvalidEventException {
         Map<String, Iterable<Event>> mappedEvents = new HashMap<String, Iterable<Event>>();
 
         for (String collection : events.keySet()) {

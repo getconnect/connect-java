@@ -73,7 +73,7 @@ public class ConnectClient {
      *         Will be {@link InvalidEventException}, {@Link ServerException}
      *         or a generic {@link ConnectException} with an inner exception.
      */
-    public Map<String, Iterable<EventPushResponse>> pushBatch(final Map<String, Iterable<Map<String, Object>>> batch) throws ConnectException {
+    public Map<String, Iterable<EventPushResponse>> pushBatch(final Map<String, Map<String, Object>[]> batch) throws ConnectException {
         Map<String, Iterable<Event>> eventBatch = Event.buildEventBatch(batch);
         return this.connectAPI.pushEventBatch(eventBatch);
     }
@@ -83,7 +83,7 @@ public class ConnectClient {
      * @param batch A Map with collection name as a key and event Maps as values.
      * @param callback  A {@link ConnectBatchCallback} that will be invoked with the result of the request.
      */
-    public void pushBatchAsync(final Map<String, Iterable<Map<String, Object>>> batch, final ConnectBatchCallback callback) {
+    public void pushBatchAsync(final Map<String, Map<String, Object>[]> batch, final ConnectBatchCallback callback) {
         Map<String, Iterable<Event>> eventBatch = null;
         try {
             eventBatch = Event.buildEventBatch(batch);
